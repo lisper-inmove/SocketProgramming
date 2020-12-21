@@ -25,9 +25,7 @@
    #+begin_src C
      listen(socket_desc, 16);
    #+end_src
-   #+begin_verse
    Marks the socket referred to by sockfd as a passive socket(被动接受连接的套接字), that is, as a socket that will be used to accept incoming connection requests using accept
-   #+end_verse
 
 5. Waiting for client to connect
    #+begin_src C
@@ -61,7 +59,6 @@
   int socket(int domain, int type, int protocol);
 #+end_src
 以下信息来自 man socket Ubuntu 20.04
-#+begin_verse
 The domain argument specifies a communication domain; this selects the protocol family which will be used for communication.
 1. AF_UNIX/AF_LOCAL: Local communication.
 2. AF_INET: IPv4 Internet protocols.
@@ -75,4 +72,3 @@ Since  Linux  2.6.27,  the type argument serves a second purpose: in addition to
 bitwise OR of any of the following values, to modify the behavior of socket():
 1. SOCK_NONBLOCK: Set the O_NONBLOCK file status flag on the open file description, referred to by the new file descriptor.
 2. SOCK_CLOEXEC: Set close-on-exec(FD_CLOEXEC) for new file descriptor.
-#+end_verse
