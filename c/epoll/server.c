@@ -38,7 +38,7 @@ int run(int epfd, int fd, struct epoll_event events[]) {
             struct epoll_event event = events[i];
             int event_fd = event.data.fd;
             if (event_fd == fd) {
-                printf("new connection\n");
+                new_connection(epfd);
             } else {
                 do_something();
             }
@@ -46,7 +46,28 @@ int run(int epfd, int fd, struct epoll_event events[]) {
     }
 }
 
-void do_something() {}
+void do_something() {
+    print("do something");
+}
+
+void new_connection(epfd) {
+    struct epoll_event ev;
+    struct sockaddr_in clientaddr;
+    int connfd = accept(listenfd, (struct sockaddr *)&clientaddr, &clilen);
+    if(connfd < 0) {
+        perror("connfd < 0");
+        exit(1);
+    }
+
+    setnonblocking(connfd);
+
+    char *str = inet_ntoa(clientaddr.sin_addr);
+    printf("connect from %s\n", str);
+
+    ev.data.fd = connfd;
+    ev.events = EPOLLIN | EPOLLET;
+    epoll_ctl(epfd, EPOLL_CTL_ADD, connfd, &ev);
+}
 
 int create_epfd(int *epfd, struct epoll_event ev, int listen_sock_fd) {
     *epfd = epoll_create1(0);
@@ -74,5 +95,23 @@ int create_listen_sockfd(int *fd, struct sockaddr_in *server) {
     if (ret == -1) {
         perror("listen socket error");
         return -1;
+    }
+}
+
+void setnonblocking(int sock)
+{
+    int opts;
+    opts = fcntl(sock, F_GETFL);
+
+    if(opts < 0) {
+        perror("fcntl(sock, GETFL)");
+        exit(1);
+    }
+
+    opts = opts | O_NONBLOCK;
+
+    if(fcntl(sock, F_SETFL, opts) < 0) {
+        perror("fcntl(sock, SETFL, opts)");
+        exit(1);
     }
 }
