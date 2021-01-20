@@ -6,15 +6,23 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include<arpa/inet.h>	//inet_addr
-
+#include <arpa/inet.h>	//inet_addr
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 
 #define MAX_CONNECTIONS 1024
+#define MAXLINE 32
 
 int create_epfd(int *, struct epoll_event, int);
 int create_listen_sockfd(int *, struct sockaddr_in *);
 int run(int epfd, int fd, struct epoll_event events[]);
-void do_something();
+void do_something(int epfd, struct epoll_event ev);
+void setnonblocking(int);
+void new_connection(int, int);
+void deal_with_epollin(int, struct epoll_event);
+void deal_with_epollout(int, struct epoll_event);
 
 int main(void) {
     int fd, epfd;
@@ -28,31 +36,68 @@ int main(void) {
 
 int run(int epfd, int fd, struct epoll_event events[]) {
     int n, i;
+    struct epoll_event ev;
     while(1) {
         n = epoll_wait(epfd, events, MAX_CONNECTIONS, 1);
         if (n == -1) {
             perror("epoll wait error");
-            return -1;
+            continue;
         }
         for (i = 0; i < n; i++) {
             struct epoll_event event = events[i];
             int event_fd = event.data.fd;
             if (event_fd == fd) {
-                new_connection(epfd);
+                new_connection(epfd, event_fd);
             } else {
-                do_something();
+                do_something(epfd, event);
             }
         }
     }
 }
 
-void do_something() {
-    print("do something");
+void do_something(int epfd, struct epoll_event event) {
+    if (event.events & EPOLLIN) {
+        printf("deal with epollin\n");
+        deal_with_epollin(epfd, event);
+    } else if (event.events & EPOLLOUT) {
+        deal_with_epollout(epfd, event);
+    }
 }
 
-void new_connection(epfd) {
+void deal_with_epollin(int epfd, struct epoll_event ev) {
+    while (1) {
+        char buf[MAXLINE];
+        size_t n = read(ev.data.fd, buf, MAXLINE);
+        if (n == -1) {
+            if (errno != EAGAIN) {
+                perror("read error");
+                close(ev.data.fd);
+            }
+            break;
+        } else if (n == 0){
+            printf("%s\n", buf);
+            break;
+        } else {
+            printf("%s\n", buf);
+        }
+    }
+    ev.events = EPOLLOUT | EPOLLET;
+    epoll_ctl(epfd, EPOLL_CTL_MOD, ev.data.fd, &ev);
+}
+
+void deal_with_epollout(int epfd, struct epoll_event ev) {
+    char buf[MAXLINE] = "hello random";
+    int n = sizeof(buf) / sizeof(char);
+    write(ev.data.fd, buf, n);
+    printf("write to client: %s\n", buf);
+    ev.events = EPOLLIN | EPOLLET;
+    epoll_ctl(epfd, EPOLL_CTL_MOD, ev.data.fd, &ev);
+}
+
+void new_connection(int epfd, int listenfd) {
     struct epoll_event ev;
     struct sockaddr_in clientaddr;
+    int clilen;
     int connfd = accept(listenfd, (struct sockaddr *)&clientaddr, &clilen);
     if(connfd < 0) {
         perror("connfd < 0");
@@ -86,6 +131,7 @@ int create_listen_sockfd(int *fd, struct sockaddr_in *server) {
     server->sin_family = AF_INET;
     server->sin_addr.s_addr = INADDR_ANY;
     server->sin_port = htons(1234);
+    setsockopt(*fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int));
     ret = bind(*fd, (struct sockaddr *)server, sizeof(*server));
     if (ret == -1) {
         perror("bind socket error");

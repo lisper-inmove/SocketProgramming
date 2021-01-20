@@ -2,6 +2,8 @@
 #include<string.h>
 #include<sys/socket.h>
 #include<arpa/inet.h>
+#include <unistd.h>
+#include <string.h>
 
 int create_client();
 
@@ -22,6 +24,17 @@ int create_client() {
 
     // step 3: connect to server
     connect(socket_desc, (struct sockaddr *)&server, sizeof(server));
+
+    char buf[] = "hello world111111111111111111111111111111111111111111111111111111111111111111111111111111112";
+    int n = sizeof(buf) / sizeof(char);
+    printf("%d\n", n);
+    write(socket_desc, buf, n);
+
+    sleep(10);
+
+    int ret = read(socket_desc, buf, 1024);
+    perror("read from server");
+    printf("read from server: %s\n", buf);
 
     return 0;
 }
